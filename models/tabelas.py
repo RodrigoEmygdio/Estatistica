@@ -14,6 +14,7 @@ class TabelaFrequncia:
         self.df = None
         self.frequenciaCampo = 'Frequencia'
         self.frequenciaRelativaCampo = "Frequencia Relatativa"
+        self.frequenciaAcumulada = 'Frequencia Acumulada'
         self.numeroCasasDecimais = 2
 
     def cria_tabelaFrequencia(self):
@@ -33,7 +34,14 @@ class TabelaFrequncia:
         if not isinstance(self.df, pd.DataFrame):
             self.cria_tabelaFrequencia()
 
-        self.df[self.frequenciaRelativaCampo] = (self.df[self.frequenciaCampo].values / self.df[self.frequenciaCampo].sum()) * 100
-        self.df[self.frequenciaRelativaCampo] =  self.df[self.frequenciaRelativaCampo].round(self.numeroCasasDecimais)
+        self.df[self.frequenciaRelativaCampo] = (self.df[self.frequenciaCampo].values / self.df[
+            self.frequenciaCampo].sum()) * 100
+        self.df[self.frequenciaRelativaCampo] = self.df[self.frequenciaRelativaCampo].round(self.numeroCasasDecimais)
         return self.df
 
+    def cria_frequancia_acumulada(self):
+        if not isinstance(self.df, pd.DataFrame):
+            self.cria_frequencia_relativa()
+
+        self.df[self.frequenciaAcumulada] = self.df[self.frequenciaCampo].cumsum()
+        return self.df
