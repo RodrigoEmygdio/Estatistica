@@ -21,7 +21,10 @@ class TabelaFrequncia:
         limite_superior = int((self.excesso - round(self.excesso * 0.25)) + self.colecao.max())
         limite_inferior = int(self.colecao.min() - math.ceil(self.excesso * 0.25))
         intervalo_index = pd.interval_range(start=limite_inferior, end=limite_superior, freq=self.intervalo_classes,
-                                            closed='left')
+                                            closed='right')
+        if (intervalo_index.right.max() == self.colecao.max()):
+            intervalo_index.right.values[-1] = self.colecao.max() + 1
+
         conputacao_valores = []
         for intervalo in intervalo_index.values:
             conputacao_valores.append(
