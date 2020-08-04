@@ -1,11 +1,11 @@
 import unittest
 
-from models.tabelas import TabelFrequncia
+from models.tabelas import TabelaFrequncia
 
 
 class MyTestCase(unittest.TestCase):
     def test_devera_criar_limites_atraves_do_excesso(self):
-        TabelFrequncia()
+        TabelaFrequncia()
         self.assertEqual(True, False)
 
 
