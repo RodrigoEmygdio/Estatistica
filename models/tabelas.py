@@ -11,7 +11,7 @@ class TabelaFrequncia:
         self.At = self.colecao.max() - self.colecao.min()
         self.intervalo_classes = math.ceil(self.At / self.numero_classes)
         self.excesso = self.numero_classes * self.intervalo_classes - self.At
-        self.df = None
+        self.dataFrame = None
         self.frequenciaCampo = 'Frequencia'
         self.frequenciaRelativaCampo = "Frequencia Relatativa"
         self.frequenciaAcumulada = 'Frequencia Acumulada'
@@ -29,22 +29,22 @@ class TabelaFrequncia:
         for intervalo in intervalo_index.values:
             conputacao_valores.append(
                 self.colecao[(self.colecao >= intervalo.left) & (self.colecao < intervalo.right)].shape[0])
-        self.df = pd.DataFrame(data=conputacao_valores, index=intervalo_index, columns=[self.frequenciaCampo])
-        return self.df.append(
-            pd.DataFrame(data=[self.df[self.frequenciaCampo].sum()], index=['Total'], columns=self.df.columns))
+        self.dataFrame = pd.DataFrame(data=conputacao_valores, index=intervalo_index, columns=[self.frequenciaCampo])
+        return self.dataFrame.append(
+            pd.DataFrame(data=[self.dataFrame[self.frequenciaCampo].sum()], index=['Total'], columns=self.dataFrame.columns))
 
     def cria_frequencia_relativa(self):
-        if not isinstance(self.df, pd.DataFrame):
+        if not isinstance(self.dataFrame, pd.DataFrame):
             self.cria_tabelaFrequencia()
 
-        self.df[self.frequenciaRelativaCampo] = (self.df[self.frequenciaCampo].values / self.df[
+        self.dataFrame[self.frequenciaRelativaCampo] = (self.dataFrame[self.frequenciaCampo].values / self.dataFrame[
             self.frequenciaCampo].sum()) * 100
-        self.df[self.frequenciaRelativaCampo] = self.df[self.frequenciaRelativaCampo].round(self.numeroCasasDecimais)
-        return self.df
+        self.dataFrame[self.frequenciaRelativaCampo] = self.dataFrame[self.frequenciaRelativaCampo].round(self.numeroCasasDecimais)
+        return self.dataFrame
 
     def cria_frequancia_acumulada(self):
-        if not isinstance(self.df, pd.DataFrame):
+        if not isinstance(self.dataFrame, pd.DataFrame):
             self.cria_frequencia_relativa()
 
-        self.df[self.frequenciaAcumulada] = self.df[self.frequenciaCampo].cumsum()
-        return self.df
+        self.dataFrame[self.frequenciaAcumulada] = self.dataFrame[self.frequenciaCampo].cumsum()
+        return self.dataFrame
