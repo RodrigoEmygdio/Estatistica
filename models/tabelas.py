@@ -5,9 +5,14 @@ import pandas as pd
 
 
 class TabelaFrequncia:
-    def __init__(self, dados: np.array):
+    def __init__(self, dados: np.array, numero_classes=None):
         self.colecao = np.sort(dados)
-        self.numero_classes = round(math.sqrt(self.colecao.shape[0]))
+
+        if numero_classes is None:
+            self.numero_classes = round(math.sqrt(self.colecao.shape[0]))
+        else:
+            self.numero_classes = numero_classes
+
         self.At = self.colecao.max() - self.colecao.min()
         self.intervalo_classes = math.ceil(self.At / self.numero_classes)
         self.excesso = self.numero_classes * self.intervalo_classes - self.At
@@ -31,7 +36,8 @@ class TabelaFrequncia:
                 self.colecao[(self.colecao >= intervalo.left) & (self.colecao < intervalo.right)].shape[0])
         self.dataFrame = pd.DataFrame(data=conputacao_valores, index=intervalo_index, columns=[self.frequenciaCampo])
         return self.dataFrame.append(
-            pd.DataFrame(data=[self.dataFrame[self.frequenciaCampo].sum()], index=['Total'], columns=self.dataFrame.columns))
+            pd.DataFrame(data=[self.dataFrame[self.frequenciaCampo].sum()], index=['Total'],
+                         columns=self.dataFrame.columns))
 
     def cria_frequencia_relativa(self):
         if not isinstance(self.dataFrame, pd.DataFrame):
@@ -39,7 +45,8 @@ class TabelaFrequncia:
 
         self.dataFrame[self.frequenciaRelativaCampo] = (self.dataFrame[self.frequenciaCampo].values / self.dataFrame[
             self.frequenciaCampo].sum()) * 100
-        self.dataFrame[self.frequenciaRelativaCampo] = self.dataFrame[self.frequenciaRelativaCampo].round(self.numeroCasasDecimais)
+        self.dataFrame[self.frequenciaRelativaCampo] = self.dataFrame[self.frequenciaRelativaCampo].round(
+            self.numeroCasasDecimais)
         return self.dataFrame
 
     def cria_frequancia_acumulada(self):
