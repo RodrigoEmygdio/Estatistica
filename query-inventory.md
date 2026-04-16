@@ -1,108 +1,148 @@
-Goal:
-Refine the existing query-inventory implementation and define the minimum safe hardening required so it becomes useful enough for the golden-path demo.
+Apply a minimal hardening pass to the existing query-inventory extraction so it becomes materially more useful for the golden-path demo, without redesigning the inventory system.
 
 Context:
 
-- The migration pipeline already has working stages up to "codebase-verification"
-- The current weakest evidence area is "query-inventory.json"
-- Current observed problems:
-  - it does not capture methods reliably enough
-  - it misses relevant repositories/services that contain HQL/JPQL
-  - it is too weak to support conservative reuse decisions for data-access artifacts
-- We do NOT want a redesign of the whole inventory layer
-- We do NOT want a full-blown query analysis engine
-- We want the minimum safe improvement needed for the demo golden path
+- Step 1A already exists
+- The current weakest area is "query-inventory.json"
+- Current observed issues:
+  - method extraction is weak
+  - HQL/JPQL-bearing artifacts are being missed
+  - downstream data-access reuse decisions are underpowered because query evidence is too thin
+- We do NOT want a full query-analysis engine
+- We want the smallest correct improvement for the demo path
 
-Important constraints:
+Goal:
+Improve the existing query-inventory extraction so it captures enough method/query evidence to support conservative downstream reuse verification for the demo golden path.
 
-- Do NOT implement code
-- Do NOT modify files
-- Do NOT redesign the pipeline
-- Do NOT propose semantic embeddings or complex retrieval
-- Focus only on refining the current query-inventory extraction strategy
+1. Scope of this correction
 
-1. Review targets
+Implement only:
 
-Review internally:
+- stronger method extraction for query-bearing artifacts
+- stronger detection of query-bearing sources
+- minimum useful enrichment of "query-inventory.json"
 
-- the existing Step 1A query-inventory extraction logic
-- the current "query-inventory.json"
-- the relevant inventory contracts/docs
-- the current verification/codebase report only as needed to understand downstream impact
+Do NOT implement:
 
-2. Objective
+- full JPQL/HQL parser
+- semantic search
+- complex query normalization
+- full call graph
+- runtime reflection
+- broad redesign of all inventory artifacts
 
-Determine the smallest set of practical improvements that would make "query-inventory.json" materially more useful for a conservative golden-path demo.
+2. Required query sources to detect
 
-3. Questions to answer
-
-Evaluate and decide:
-
-A. Method extraction
-
-What minimum method-level metadata must be captured so query-bearing artifacts become useful for downstream reuse verification?
-
-B. Query source detection
-
-Which query-bearing sources must be recognized for the demo MVP?
-Evaluate at least:
+For the MVP, improve detection of these sources when statically obvious:
 
 - "@Query"
 - "EntityManager"
 - "JdbcTemplate"
 - "NamedParameterJdbcTemplate"
-- inline HQL/JPQL strings in repositories/services/adapters
+- inline HQL/JPQL string usage in repositories/services/adapters when clearly present
 
-C. HQL/JPQL coverage
+This is a detection improvement, not a full parser.
 
-What minimum static detection of HQL/JPQL is sufficient for the demo?
-Do not aim for completeness. Aim for useful minimum coverage.
+3. Method extraction improvement
 
-D. Output usefulness
+The query inventory must capture real method-level evidence more reliably.
 
-What fields are strictly necessary in "query-inventory.json" so later matching can distinguish:
+At minimum, for each query entry, try to expose:
 
-- real query reuse candidates
-- plain method names
-- infrastructure wrappers
-- weak/noisy hits
+- "ownerArtifactName"
+- "ownerArtifactType"
+- "ownerFullyQualifiedName"
+- "methodName"
+- "filePath"
+- "queryKind"
+- "sourceKind"
 
-E. Non-goals
+If safely available, also include:
 
-What should explicitly be left for after the demo?
+- "hasQueryAnnotation"
+- "usesEntityManager"
+- "usesJdbcTemplate"
+- "usesNamedParameterJdbcTemplate"
+- "querySnippet" or "queryPreview" (short, bounded, optional)
+- "parameterTypes" (optional, only if easily extractable)
+- "returnType" (optional, only if easily extractable)
 
-4. Required response format
+Do not overengineer optional fields.
 
-Return exactly this structure:
+4. HQL/JPQL detection rule
 
-Query Inventory Hardening Plan
+Add lightweight static detection for HQL/JPQL-like strings when they are clearly present in:
 
-1. Overall conclusion
+- repository classes
+- service classes
+- adapter classes involved in DB access
 
-State one of:
+Conservative rule:
 
-- MINIMAL HARDENING IS ENOUGH
-- HARDENING IS NEEDED BUT MUST STAY VERY NARROW
-- CURRENT APPROACH IS TOO WEAK FOR DEMO
+- only capture when there is an obvious query-bearing string near a recognized data-access mechanism
+- do not guess from arbitrary strings
 
-2. Current critical weaknesses
+5. Noise control
 
-3. Minimum improvements required now
+Avoid polluting "query-inventory.json" with generic infrastructure noise.
 
-4. Query sources that must be detected for the demo
+Do NOT emit query entries for:
 
-5. Minimum fields that query-inventory must expose
+- unrelated helper methods
+- plain constructors
+- non-query utility methods
+- framework boilerplate without clear query behavior
 
-6. What can be safely deferred until after 07/05
+Prefer fewer useful entries over many weak entries.
 
-7. Safe implementation guidance for Qwen
+6. Preservation rules
 
-8. Final recommendation
+Do NOT break:
 
-5. Final discipline
+- deterministic ordering
+- metadata wrapper shape ("generatedAt", "gitCommitSha", "items")
+- current inventory generation for repositories/services/entities/adapters
+- fallback behavior already implemented
 
-- Be pragmatic
-- Be conservative
-- Focus on the golden path
-- Do not redesign the extractor family
-- Prefer small high-value improvements
+Only strengthen query extraction.
+
+7. Determinism requirements
+
+Keep extraction deterministic:
+
+- stable file traversal
+- stable per-item ordering
+- stable JSON ordering
+- stable field naming
+
+8. Acceptance criteria
+
+This hardening pass is complete only if:
+
+- "query-inventory.json" captures method-level entries more reliably
+- "@Query", "EntityManager", "JdbcTemplate", and "NamedParameterJdbcTemplate" are handled more robustly
+- obvious HQL/JPQL-bearing cases are no longer silently missed
+- noise remains bounded
+- no unrelated inventory modules are broadly redesigned
+
+9. Required output after changes
+
+After applying the hardening, return a concise summary with exactly these sections:
+
+Query Inventory Hardening Applied
+
+Files updated
+
+Improvements applied
+
+What was intentionally left unchanged
+
+Safe next step
+
+10. Final instruction
+
+Make the smallest correct improvements that materially strengthen "query-inventory.json" for the demo golden path.
+
+Do not redesign the inventory stage.
+Do not broaden scope.
+Prefer conservative useful extraction over ambitious incomplete parsing.
