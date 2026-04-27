@@ -1,185 +1,93 @@
-Refine the current bundle-planning logic inside the Code Writer Stage so that inter-bundle dependencies become deterministic, conservative, and semantically valid for the demo MVP.
+Goal:
+Generate a minimal correction prompt for Qwen based on the approved diagnostic review of the current Code Writer, with one important refinement: the new per-bundle required-artifact mapping must be driven primarily by deterministic orchestration inputs and explicit dependency hints, not by generated-code/stub analysis as the main architectural source.
 
 Context:
 
-- The current bundle-based writer direction is correct
-- However, the current dependency logic between bundles is too weak and is producing semantically invalid or artificial dependencies
-- We want the smallest safe correction
-- We do NOT want a broad redesign of the codegen stage
-- We do NOT want a self-evolving dependency graph inferred primarily from generated code
-- We want a deterministic MVP bundle graph driven mainly by orchestration rules
+- The current Code Writer has already been diagnosed
+- The approved diagnosis concluded that the writer still suffers mainly from:
+  - artificial bundle dependencies
+  - prompt overload
+  - mixing weak context with authoritative contract
+  - lack of explicit “no generated dependency” signaling
+- The approved smallest high-value correction is:
+  - introduce precise per-bundle required-artifact mapping
+  - replace generic generated dependency lists with the exact required list
+  - explicitly say when there are no generated dependencies
+- We want Qwen to apply only this narrow correction
+- We do NOT want Qwen to redesign the writer, bundling strategy, or pipeline
 
-Goal:
-Correct the bundle dependency logic so that:
+Important refinement:
 
-- bundle dependencies are created only when justified by deterministic orchestration rules
-- design/traceability may validate or enrich relationships, but not invent them alone
-- generated signatures are used only for downstream contract propagation after generation, not as the primary source of graph construction
+- The exact required-artifact mapping must be derived primarily from:
+  - deterministic orchestration rules
+  - pre-codegen authorized targets
+  - package inference
+  - explicit dependency hints already available in structured artifacts and/or curated design dependency hints
+- It must NOT rely primarily on parsing generated code stubs to invent the dependency graph
+- Generated signatures may remain secondary support for downstream prompt context, but not the primary dependency source
 
-1. Scope of this correction
+Important constraints:
 
-Implement only:
+- Do NOT implement code
+- Do NOT redesign the writer
+- Do NOT redesign the bundle plan
+- Do NOT broaden scope into full bundling overhaul
+- Generate only a correction prompt for Qwen
 
-- correction of inter-bundle dependency planning
-- explicit conservative dependency rules
-- safer cycle handling
-- alignment of generated-signatures usage with the new role
+1. Required correction target
 
-Do NOT implement:
+Generate a Qwen correction prompt that fixes only the highest-value current problem:
 
-- broad redesign of the writer
-- full dependency graph inference from generated code
-- new semantic retrieval
-- new parser infrastructure unless already present and trivial
-- redesign of pre-codegen
+- remove artificial generic generated dependency propagation
+- introduce an exact per-bundle required generated-artifact list
+- reduce writer prompt noise
+- add an explicit “no generated dependencies” signal when applicable
 
-2. Required dependency-source priority
+2. Required intent of the correction
 
-Use this priority order for bundle dependency planning:
+The correction prompt for Qwen must enforce that:
 
-Primary source
+A. Exact required-artifact mapping
 
-Deterministic orchestration rules:
+After bundle planning is built, compute a second mapping for each bundle containing only the generated artifacts that are actually required by that bundle.
 
-- target type / layer rules
-- pre-codegen authorized targets
-- package-inference resolved targets
-- explicit planned relationships when present
+B. Primary source of truth
 
-Secondary source
+This mapping must be driven primarily by:
 
-Design + traceability:
+- deterministic orchestration rules
+- structured upstream artifacts
+- explicit dependency hints already available
+- curated design dependency hints only where needed
 
-- may validate intended functional relationships
-- may enrich known relationships
-- must NOT invent dependency edges by themselves
+C. Secondary-only support
 
-Tertiary source
+Generated signatures may still be used only as secondary contract propagation support, not as the primary architectural source for deciding dependency edges.
 
-Generated signatures:
+D. Prompt simplification
 
-- may be used only after a bundle is generated
-- may provide public contract context for later bundle prompts
-- must NOT be the primary source of bundle graph creation for the demo
+The writer prompt must stop listing noisy generic generated dependencies and instead list only:
 
-3. Forbidden dependency heuristics
+- the exact required generated artifacts
+  or
+- an explicit “none” statement
 
-Do NOT create bundle dependencies based only on:
+E. Explicit no-dependency signal
 
-- bundle order
-- block order
-- bounded-context coincidence
-- naming similarity
-- “previous bundle” fallback
-- loose artifact-type guess without explicit deterministic rule
+If a bundle requires no generated artifacts, the prompt must explicitly say:
 
-4. Minimum safe bundle dependency rule
+- "NO GENERATED DEPENDENCIES - DO NOT IMPORT ANY GENERATED TYPES"
 
-A bundle may depend on another bundle only if at least one of these is true:
+3. Required response format
 
-A. Deterministic layer/type rule
+Return exactly this structure:
 
-The current bundle contains target types that are explicitly allowed to depend on target types from the other bundle according to MVP orchestration rules.
+Qwen Minimal Correction Prompt
 
-For the demo MVP, use a conservative layering model such as:
+<full correction prompt text only>4. Final discipline
 
-- application-service may depend on:
-  - domain-service
-  - repository
-  - model / dto / value object
-- domain-service may depend on:
-  - repository
-  - model / value object
-- repository / adapter may depend on:
-  - model / query-support artifacts
-- model / dto / value object should not depend on higher layers
-
-Keep this strict and minimal.
-
-B. Explicit planned relationship
-
-There is an explicit planned relationship already available in orchestrator artifacts and it can be mapped deterministically to another generated target/bundle.
-
-C. Generated-contract propagation for later prompts
-
-After an earlier bundle is generated, its signatures may be propagated as prompt context to a later bundle that is already known to depend on it by rules A or B.
-This propagation must not itself create a new dependency edge.
-
-5. Bundle planning artifact behavior
-
-Refine "codegen-bundle-plan.json" so that for each bundle:
-
-- "dependsOnBundles" contains only justified edges
-- "generatedDependencies" contains only artifacts that are truly needed from already-generated bundles
-- "reusedDependencies" remains unchanged for existing-codebase reuse context
-
-Do not inflate dependency lists.
-
-6. Generated-signatures role correction
-
-If "generated-signatures.json" already exists or is being produced:
-
-- keep it
-- but use it only to pass normalized public contracts to later bundles
-- do not use it to invent bundle dependencies from simple FQN/string matching alone
-
-7. Cycle policy
-
-If bundle dependency planning detects a cycle:
-
-- do NOT abort the entire stage by default
-- mark the affected bundle(s) as guarded / "manual_review_required"
-- emit a warning/report entry
-- continue with remaining safe bundles when possible
-
-Do not silently ignore cycles.
-
-8. Determinism requirements
-
-Maintain determinism in:
-
-- bundle ordering
-- dependency ordering
-- generatedDependencies ordering
-- JSON field names
-- pretty-printing
-- cycle reporting
-
-Stable ordering is mandatory.
-
-9. Acceptance criteria
-
-This correction is complete only if:
-
-- semantically weak artificial dependencies are no longer created
-- dependency edges come only from justified deterministic rules
-- generated-signatures are no longer misused as the primary graph source
-- cycle handling is conservative and explicit
-- no broad redesign is introduced
-- the bundle-based writer remains demo-viable
-
-10. Required output after changes
-
-After applying the correction, return a concise summary with exactly these sections:
-
-Bundle Dependency Logic Corrected
-
-Files updated
-
-Dependency rules implemented
-
-Forbidden heuristics removed
-
-Generated-signature role corrected
-
-Cycle handling implemented
-
-What was intentionally left unchanged
-
-11. Final instruction
-
-Make the smallest safe correction that turns the current bundle dependency planning into a deterministic, conservative, demo-safe MVP model.
-
-Do not redesign the whole writer.
-Do not depend primarily on generated-code scanning.
-Do not create artificial dependency edges.
+- Keep the correction narrow
+- Preserve the rest of the current writer direction
+- Fix only the highest-value current problem
+- Do not redesign the stage
+- Do not make generated-code parsing the primary dependency source
