@@ -1,103 +1,103 @@
 Goal:
-Review the current Code Writer direction and determine whether it should be refactored so that:
-
-- bundle generation is planned explicitly before writing,
-- inter-bundle dependencies are provided explicitly,
-- newly generated artifacts expose normalized signatures for downstream bundles,
-- and the writer returns to using the existing canonical prompt as its fixed base.
+Perform a strict diagnostic review of the current Code Writer implementation and its generated writer prompt composition, and determine why the latest implementation is still not producing a good demo-safe writer model.
 
 Context:
 
-- The current writer direction is evolving toward bundle-based generation
-- This is the right direction for the demo, but there is a risk of turning the writer into an ad hoc stateful system
-- We want a controlled solution:
-  - explicit bundle planning
-  - explicit dependency context
-  - incremental generated-signature capture
-  - canonical-prompt-based writer composition
-- The coding model created its own custom prompt instead of using the canonical prompt base
-- We want to validate whether this should be corrected now
+- The Code Writer has already gone through multiple iterations
+- Qwen has implemented changes, but the result is still not satisfactory
+- Current symptoms include:
+  - weak or artificial bundle dependencies
+  - prompt composition that is still too noisy or not semantically well-structured
+  - the writer still not behaving like a clean controlled code-generation stage
+- We do NOT want a redesign of the entire pipeline
+- We want a precise diagnosis of what is still wrong now
 
 Important constraints:
 
 - Do NOT implement code
 - Do NOT modify files
-- Do NOT redesign the whole pipeline
-- Do NOT propose broad runtime statefulness
-- Focus only on this writer-model refinement
+- Do NOT redesign the whole architecture
+- Focus only on diagnosing the current Code Writer implementation and prompt-builder direction
 
-1. Core question
+1. Review targets
 
-Should the Code Writer architecture for the demo be refined so that:
+Review internally:
 
-1. bundle generation is first planned explicitly in a "codegen-bundle-plan.json"
-2. each bundle includes:
-   - targets to generate
-   - reused dependency context
-   - generated dependency context from earlier bundles
-3. newly generated artifacts produce normalized signatures persisted in a "generated-signatures.json"
-4. the actual writer prompt uses the existing canonical prompt as a fixed base instead of an ad hoc prompt invented by the coding model
+- current codegen/code writer implementation
+- current bundle planning logic
+- current prompt builder logic
+- current writer output contract
+- current use of:
+  - pre-codegen-decision-table.json
+  - package-inference.json
+  - codegen-bundle-plan.json
+  - design.md
+  - sp-numbered.sql
+- any generated prompt sample / debug prompt output available
 
-2. Questions to decide
+2. Core question
 
-A. Bundle planning
+Why is the current Code Writer direction still not good enough, even after the recent refactors?
 
-Is an explicit "codegen-bundle-plan.json" the right minimum mechanism for the demo?
+3. Review criteria
 
-B. Inter-bundle dependency handling
+Evaluate specifically:
 
-Should dependencies on already-existing artifacts and newly-generated artifacts be represented explicitly and separately?
+A. Bundle planning quality
 
-C. Generated signature propagation
+- Are bundle dependencies still artificial, inflated, or semantically invalid?
+- Are bundles themselves too small, too large, or poorly grouped?
 
-Is a "generated-signatures.json" artifact the safest MVP way to pass newly created contracts to later bundles?
+B. Prompt constitution quality
 
-D. Canonical prompt discipline
+- Is the prompt still overloaded?
+- Are authoritative decisions mixed with too much weak context?
+- Is the prompt structure helping the model, or overburdening it?
 
-Should the writer be forced back to:
+C. Responsibility separation
 
-- canonical fixed prompt base
-  plus
-- orchestrator-assembled bundle payload
+- Is the writer still being asked to solve decisions that should already be settled before prompt construction?
+- Is the orchestrator doing enough work, or is too much still delegated to the LLM?
 
-instead of a custom free-form prompt created by the coding model?
+D. Output contract realism
 
-E. Demo viability
+- Is the output contract appropriate for the current prompt?
+- Is the stage asking for too much structure and too much implementation at once?
 
-Does this refinement keep the happy path realistic for this week, or does it risk overcomplicating the demo?
+E. Smallest next correction
 
-3. Required response format
+- What is the smallest correction that would most improve the current writer stage?
+
+4. Required response format
 
 Return exactly this structure:
 
-Code Writer Bundle-Planning Review
+Current Code Writer Diagnostic Review
 
 1. Overall conclusion
 
 State one of:
 
-- KEEP CURRENT WRITER MODEL
-- REFINE WRITER WITH BUNDLE PLAN AND GENERATED SIGNATURES
-- CURRENT WRITER NEEDS A DIFFERENT ADJUSTMENT
+- CURRENT WRITER IS CLOSE AND NEEDS SMALL FIXES
+- CURRENT WRITER HAS A STRUCTURAL PROBLEM AND NEEDS A TARGETED REWORK
 
-2. Why the current direction is or is not sufficient
+2. What is already correct
 
-3. Whether explicit bundle planning is required
+3. What is still wrong
 
-4. Whether generated-signatures.json is the right MVP artifact
+4. What is causing the writer to remain weak
 
-5. Whether the writer must return to canonical prompt usage
+5. What must stop being delegated to Qwen/LLM
 
-6. Risks of doing this now
+6. Smallest high-value correction now
 
-7. Risks of not doing this now
+7. What can wait until after the demo
 
 8. Final recommendation
 
-4. Final discipline
+5. Final discipline
 
-- Be pragmatic
+- Be precise
 - Be conservative
-- Optimize for a demo-safe happy path
-- Do not redesign the whole product
-- Focus on the smallest structural refinement that prevents writer chaos
+- Prefer diagnosis over redesign
+- Focus on actionable architectural correction
