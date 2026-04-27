@@ -1,93 +1,101 @@
 Goal:
-Generate a minimal correction prompt for Qwen based on the approved diagnostic review of the current Code Writer, with one important refinement: the new per-bundle required-artifact mapping must be driven primarily by deterministic orchestration inputs and explicit dependency hints, not by generated-code/stub analysis as the main architectural source.
+Generate a minimal correction prompt for Qwen that replaces the current flawed bundle-planning basis with a simpler, demo-safe phase-based bundle planning model.
 
 Context:
 
-- The current Code Writer has already been diagnosed
-- The approved diagnosis concluded that the writer still suffers mainly from:
-  - artificial bundle dependencies
-  - prompt overload
-  - mixing weak context with authoritative contract
-  - lack of explicit “no generated dependency” signaling
-- The approved smallest high-value correction is:
-  - introduce precise per-bundle required-artifact mapping
-  - replace generic generated dependency lists with the exact required list
-  - explicitly say when there are no generated dependencies
-- We want Qwen to apply only this narrow correction
-- We do NOT want Qwen to redesign the writer, bundling strategy, or pipeline
-
-Important refinement:
-
-- The exact required-artifact mapping must be derived primarily from:
-  - deterministic orchestration rules
-  - pre-codegen authorized targets
-  - package inference
-  - explicit dependency hints already available in structured artifacts and/or curated design dependency hints
-- It must NOT rely primarily on parsing generated code stubs to invent the dependency graph
-- Generated signatures may remain secondary support for downstream prompt context, but not the primary dependency source
+- The current "codegen-bundle-plan.json" is not reliable enough
+- Bundles are still being grouped in a way that produces artificial or inflated "dependsOnBundles"
+- Application-service bundles are ending up with large meaningless dependency lists
+- The current problem is no longer just prompt noise; the bundle-plan itself is weak
+- For the demo MVP, we need a smaller and more deterministic execution model
+- We do NOT want a full redesign of the writer or pipeline
+- We want the smallest structural correction that makes the bundle plan usable
 
 Important constraints:
 
 - Do NOT implement code
-- Do NOT redesign the writer
-- Do NOT redesign the bundle plan
-- Do NOT broaden scope into full bundling overhaul
+- Do NOT redesign the whole pipeline
+- Do NOT broaden into advanced dependency graph inference
 - Generate only a correction prompt for Qwen
 
 1. Required correction target
 
-Generate a Qwen correction prompt that fixes only the highest-value current problem:
+Generate a correction prompt for Qwen that does the following:
 
-- remove artificial generic generated dependency propagation
-- introduce an exact per-bundle required generated-artifact list
-- reduce writer prompt noise
-- add an explicit “no generated dependencies” signal when applicable
+A. Replace the current dependency-heavy bundle plan basis
 
-2. Required intent of the correction
+Do not treat the current broad "dependsOnBundles" generation as the foundation to preserve.
 
-The correction prompt for Qwen must enforce that:
+B. Introduce a phase-based execution plan for the demo MVP
 
-A. Exact required-artifact mapping
+Build bundle planning primarily from deterministic artifact phases/layers:
 
-After bundle planning is built, compute a second mapping for each bundle containing only the generated artifacts that are actually required by that bundle.
+1. "model-dto-phase"
+   
+   - DomainModel
+   - DTO
+   - ValueObject
+   - Projection / supporting model artifacts
 
-B. Primary source of truth
+2. "repository-phase"
+   
+   - Repository
+   - Query-support
+   - Adapter / data-access artifacts
 
-This mapping must be driven primarily by:
+3. "domain-service-phase"
+   
+   - DomainService
 
-- deterministic orchestration rules
-- structured upstream artifacts
-- explicit dependency hints already available
-- curated design dependency hints only where needed
+4. "application-service-phase"
+   
+   - ApplicationService
 
-C. Secondary-only support
+C. Build bundles within each phase conservatively
 
-Generated signatures may still be used only as secondary contract propagation support, not as the primary architectural source for deciding dependency edges.
+- only include "generate_new" targets
+- group small related targets within the same phase
+- do not rely on boundedContext alone
+- do not mix unrelated layers in the same bundle
 
-D. Prompt simplification
+D. Restrict dependencies by phase
 
-The writer prompt must stop listing noisy generic generated dependencies and instead list only:
+For the demo MVP:
 
-- the exact required generated artifacts
-  or
-- an explicit “none” statement
+- model/dto phase -> no higher-layer dependencies
+- repository phase -> may depend only on model/dto/query-support artifacts
+- domain-service phase -> may depend only on repository phase and model phase
+- application-service phase -> may depend only on domain-service phase, repository phase, and model phase
 
-E. Explicit no-dependency signal
+E. No artificial dependency edges
 
-If a bundle requires no generated artifacts, the prompt must explicitly say:
+Do NOT create dependency edges based only on:
 
-- "NO GENERATED DEPENDENCIES - DO NOT IMPORT ANY GENERATED TYPES"
+- same bounded context
+- bundle order
+- block order
+- naming similarity
+- “all possible layer-to-layer edges”
 
-3. Required response format
+F. Minimal "dependsOnBundles"
+
+A bundle should depend only on bundles from earlier phases that are actually required by the phase rules and explicit target relationships.
+If there is no clear dependency, leave "dependsOnBundles" empty.
+
+G. Keep prompt/context logic secondary
+
+The goal of this correction is first to produce a sane "codegen-bundle-plan.json".
+Prompt simplification can remain secondary and must consume the corrected plan.
+
+2. Required response format
 
 Return exactly this structure:
 
-Qwen Minimal Correction Prompt
+Qwen Phase-Based Bundle Plan Correction Prompt
 
-<full correction prompt text only>4. Final discipline
+<full correction prompt text only>3. Final discipline
 
-- Keep the correction narrow
-- Preserve the rest of the current writer direction
-- Fix only the highest-value current problem
-- Do not redesign the stage
-- Do not make generated-code parsing the primary dependency source
+- Keep the correction minimal
+- Replace the flawed bundle-plan basis, not the whole writer
+- Prefer deterministic phase-based planning over noisy dependency graphs
+- Optimize for a demo-safe happy path
