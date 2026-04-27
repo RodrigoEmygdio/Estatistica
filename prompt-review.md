@@ -1,105 +1,32 @@
-Goal:
-Review the current bundle-planning implementation inside the Code Writer flow and determine why it is producing semantically weak or incorrect inter-bundle dependencies, then recommend the minimum deterministic correction.
+Use a combination, with this priority order:
 
-Context:
+1. Primary driver: deterministic orchestration rules
+   
+   - target type / layer rules
+   - pre-codegen authorized targets
+   - package-inference resolved targets
+   - explicit planned relationships when present
 
-- The Code Writer direction was updated toward bundle-based generation
-- Bundle planning is now being generated inside the codegen stage
-- The current implementation is producing bundle dependencies that do not make architectural sense
-- We do NOT want a broad redesign of the whole codegen stage
-- We want a focused review of the current bundle-planning logic and a minimal correction strategy
+2. Secondary validator/enricher: design + traceability
+   
+   - use these to validate intended functional relationships
+   - do not let them invent dependencies by themselves
 
-Important constraints:
+3. Tertiary runtime enrichment only: generated signatures
+   
+   - use generated-signatures.json only after a bundle is generated
+   - use it to provide downstream prompt context for later bundles
+   - do NOT use it as the primary source to build the dependency graph for the demo MVP
 
-- Do NOT implement code
-- Do NOT modify files
-- Do NOT redesign the whole pipeline
-- Do NOT propose semantic embeddings or broad AI planning
-- Focus only on the correctness of the current bundle dependency planning
+For the demo, we want a deterministic and conservative bundle graph, not a self-evolving architecture derived from generated code.
 
-1. Review targets
+Additional answers:
 
-Review internally:
+- Existing tooling: only use an existing parser/import extractor if it is already present, simple, and reliable. Do not make the MVP depend on building or introducing new parsing infrastructure for cross-bundle dependency inference.
+- Cycle policy: do not abort the entire codegen stage by default. If a cycle is detected, mark the affected bundle(s) as "manual_review_required", emit a warning/report entry, and continue with the remaining safe bundles when possible.
 
-- the current bundle-planning implementation in the codegen stage
-- the produced in-memory / persisted bundle structures if available
-- the current pre-codegen decision table
-- package inference entries as needed
-- the relevant codegen contract docs only as needed
+The MVP rule should be:
 
-2. Core question
-
-Why is the current implementation producing inter-bundle dependencies that do not make architectural sense, and what is the smallest safe deterministic correction?
-
-3. Review criteria
-
-Evaluate specifically:
-
-A. Current dependency heuristic
-
-- What rule is currently causing meaningless dependencies?
-- Is it based too heavily on:
-  - target order
-  - block order
-  - artifact type
-  - boundedContext coincidence
-  - naming similarity
-    without real dependency evidence?
-
-B. Architectural validity
-
-- Which current bundle dependencies are structurally weak or unjustified?
-- Are bundles depending on one another without a clear reason grounded in:
-  - known design intent
-  - explicit reuse/generation relationship
-  - repository/service/model layering rules
-
-C. Minimum safe dependency rule
-
-- What should be the minimum deterministic rule for bundle dependencies in the demo?
-- Should dependency creation be restricted to a smaller set of allowed patterns?
-
-D. Safe MVP simplification
-
-- Would it be safer for the demo to reduce bundle dependencies to:
-  - layer ordering only
-  - explicit known generated dependency edges only
-  - or no dependency unless explicitly justified?
-
-E. Correction scope
-
-- What is the smallest correction that avoids nonsense dependencies without destabilizing the rest of the writer?
-
-4. Required response format
-
-Return exactly this structure:
-
-Bundle Planning Dependency Review
-
-1. Overall conclusion
-
-State one of:
-
-- CURRENT BUNDLE DEPENDENCY LOGIC IS ACCEPTABLE
-- CURRENT BUNDLE DEPENDENCY LOGIC IS TOO WEAK AND NEEDS CORRECTION
-
-2. Why the current dependencies do not make sense
-
-3. What heuristic is currently wrong
-
-4. Minimum safe dependency rule for the demo
-
-5. What bundle dependencies should be forbidden
-
-6. Minimal correction recommended
-
-7. Risks if left unchanged
-
-8. Final recommendation
-
-5. Final discipline
-
-- Be pragmatic
-- Be conservative
-- Prefer the smallest correction over redesign
-- Focus on stopping semantically invalid bundle dependencies
+- no dependency edge unless explicitly justified by deterministic orchestration logic
+- no dependency edge based only on bundle order, bounded-context coincidence, block order, or naming similarity
+- generated signatures are for contract propagation, not for inventing the graph
