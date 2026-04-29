@@ -1,101 +1,172 @@
 Goal:
-Generate a minimal correction prompt for Qwen that replaces the current flawed bundle-planning basis with a simpler, demo-safe phase-based bundle planning model.
+Fix the pre-codegen artifact classification so JPA repositories and repository services are separated deterministically before codegen.
 
 Context:
 
-- The current "codegen-bundle-plan.json" is not reliable enough
-- Bundles are still being grouped in a way that produces artificial or inflated "dependsOnBundles"
-- Application-service bundles are ending up with large meaningless dependency lists
-- The current problem is no longer just prompt noise; the bundle-plan itself is weak
-- For the demo MVP, we need a smaller and more deterministic execution model
-- We do NOT want a full redesign of the writer or pipeline
-- We want the smallest structural correction that makes the bundle plan usable
+- The current codegen bundles artifacts by artifactCategory
+- RepositoryService artifacts and JpaRepository artifacts are currently being mixed or misclassified
+- As a result, the LLM generates repository service classes but does not generate the corresponding Spring Data JPA repository interfaces
+- This is not primarily a codegen prompt problem
+- This is a pre-codegen classification and query-mapping problem
 
-Important constraints:
+Problem:
+Repository-layer artifacts from design.md may include both:
 
-- Do NOT implement code
-- Do NOT redesign the whole pipeline
-- Do NOT broaden into advanced dependency graph inference
-- Generate only a correction prompt for Qwen
-
-1. Required correction target
-
-Generate a correction prompt for Qwen that does the following:
-
-A. Replace the current dependency-heavy bundle plan basis
-
-Do not treat the current broad "dependsOnBundles" generation as the foundation to preserve.
-
-B. Introduce a phase-based execution plan for the demo MVP
-
-Build bundle planning primarily from deterministic artifact phases/layers:
-
-1. "model-dto-phase"
+1. JPA Repository interfaces:
    
-   - DomainModel
-   - DTO
-   - ValueObject
-   - Projection / supporting model artifacts
+   - Spring Data interfaces
+   - extend JpaRepository or CrudRepository
+   - contain query methods such as @Query or derived finder methods
 
-2. "repository-phase"
+2. Repository Service classes:
    
-   - Repository
-   - Query-support
-   - Adapter / data-access artifacts
+   - @Service classes
+   - inject the corresponding JPA repository
+   - map persistence/query results to domain/model classes
 
-3. "domain-service-phase"
-   
-   - DomainService
+These two artifact types must not be bundled together under the same artifactCategory.
 
-4. "application-service-phase"
-   
-   - ApplicationService
+Scope
 
-C. Build bundles within each phase conservatively
+Implement only the deterministic pre-codegen classification fix.
 
-- only include "generate_new" targets
-- group small related targets within the same phase
-- do not rely on boundedContext alone
-- do not mix unrelated layers in the same bundle
+Do NOT:
 
-D. Restrict dependencies by phase
+- redesign the whole pipeline
+- modify diagnosis
+- modify traceability
+- modify design generation
+- implement broad codegen redesign
+- introduce semantic retrieval
+- rely on LLM inference for this classification
 
-For the demo MVP:
+Required behavior
 
-- model/dto phase -> no higher-layer dependencies
-- repository phase -> may depend only on model/dto/query-support artifacts
-- domain-service phase -> may depend only on repository phase and model phase
-- application-service phase -> may depend only on domain-service phase, repository phase, and model phase
+Before codegen bundles are created, every repository-layer artifact must be classified as one of:
 
-E. No artificial dependency edges
+- jpa-repository
+- repository-service
 
-Do NOT create dependency edges based only on:
+Classification rules
 
-- same bounded context
-- bundle order
-- block order
-- naming similarity
-- “all possible layer-to-layer edges”
+jpa-repository
 
-F. Minimal "dependsOnBundles"
+Classify as "jpa-repository" when the artifact represents a Spring Data repository interface.
 
-A bundle should depend only on bundles from earlier phases that are actually required by the phase rules and explicit target relationships.
-If there is no clear dependency, leave "dependsOnBundles" empty.
+Signals:
 
-G. Keep prompt/context logic secondary
+- name ends with "Repository" but not "RepositoryService"
+- artifact is described as interface
+- design or package inference indicates Spring Data / JPA repository
+- target package matches infrastructure db jpa repositories
+- should extend JpaRepository or CrudRepository
 
-The goal of this correction is first to produce a sane "codegen-bundle-plan.json".
-Prompt simplification can remain secondary and must consume the corrected plan.
+repository-service
 
-2. Required response format
+Classify as "repository-service" when the artifact represents a service wrapper around persistence access.
 
-Return exactly this structure:
+Signals:
 
-Qwen Phase-Based Bundle Plan Correction Prompt
+- name ends with "RepositoryService"
+- artifact is described as service or implementation
+- target package matches bounded-context repository/service package
+- should inject a corresponding JPA repository
+- should map query results to domain/model classes
 
-<full correction prompt text only>3. Final discipline
+Pairing rule
 
-- Keep the correction minimal
-- Replace the flawed bundle-plan basis, not the whole writer
-- Prefer deterministic phase-based planning over noisy dependency graphs
-- Optimize for a demo-safe happy path
+For every "repository-service", infer or attach the corresponding "jpa-repository".
+
+Example:
+
+- BranchRepositoryService -> BranchRepository
+- IEventRepositoryService -> IEventRepository
+- InstructionRepositoryService -> InstructionRepository
+
+If the corresponding JPA repository is missing from the pre-codegen decision table, create a derived "jpa-repository" artifact entry unless a conflicting artifact already exists.
+
+The derived entry must include:
+
+- artifactCategory: "jpa-repository"
+- designArtifactName
+- derivedPackage
+- targetPath
+- queryMethods if available
+- relation to the repository-service
+
+Query method propagation
+
+If query methods are known from:
+
+- codebase-verification-report.json
+- design.md Required New Artifacts
+- pre-codegen-decision-table.json
+- query-inventory.json
+
+then attach them to the "jpa-repository" artifact.
+
+The "repository-service" must reference the same query methods as delegated methods, but the actual query definition belongs to the "jpa-repository".
+
+Codegen bundle rules
+
+The codegen bundle must separate:
+
+Bundle: jpa-repository
+
+Must include only artifacts classified as "jpa-repository".
+
+Instruction for LLM:
+
+- generate interface
+- annotate with @Repository if project convention requires it
+- extend JpaRepository or CrudRepository
+- declare query methods
+- include @Query only when query text is available and reliable
+- otherwise generate derived method signatures or TODO comments with traceability
+
+Bundle: repository-service
+
+Must include only artifacts classified as "repository-service".
+
+Instruction for LLM:
+
+- generate @Service class
+- inject corresponding JPA repository
+- expose domain-facing methods
+- delegate persistence calls to JPA repository
+- map persistence results to domain/model/projection objects
+
+Required output updates
+
+Update the relevant artifact decision structures so they explicitly contain:
+
+- artifactCategory
+- relatedJpaRepositoryName, when artifactCategory is repository-service
+- relatedRepositoryServiceName, when artifactCategory is jpa-repository
+- queryMethods, when known
+- sourceRule explaining whether classification came from suffix, package, design, or derived pairing
+
+Validation
+
+Add or update validation so that:
+
+- no "repository-service" artifact is sent in the "jpa-repository" bundle
+- no "jpa-repository" artifact is sent in the "repository-service" bundle
+- every "repository-service" has a corresponding "jpa-repository", unless explicitly marked as unresolved
+- if unresolved, emit a warning before codegen
+
+Acceptance criteria
+
+This fix is complete only if:
+
+- JPA repositories and repository services are separated before codegen
+- repository-service artifacts no longer suppress generation of JPA repository interfaces
+- generated codegen bundles contain the correct artifact categories
+- repository services receive the name of the JPA repository they must inject
+- JPA repositories receive the query methods they must declare when available
+- no broad unrelated refactor is introduced
+
+Final instruction:
+This is a deterministic pre-codegen classification fix.
+Do not rely on the LLM to guess artifact category.
+The LLM must receive already-separated bundles with explicit instructions.
