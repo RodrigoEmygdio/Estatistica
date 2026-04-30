@@ -1,116 +1,200 @@
 Goal:
-Review the current "docs/architecture/code-gen/minimal-codegen-contract.md" against a proposed refinement and determine whether the document is now missing or underspecifying the rules required for a demo-safe Codegen MVP.
+Fix the pre-codegen repository materialization logic so logical repository/data-access targets are expanded into the concrete architecture required by the target codebase.
 
 Context:
 
-- The current codegen implementation has exposed architectural ambiguity around:
-  - execution unit vs scheduling unit
-  - phase-based generation
-  - bundle planning rules
-  - inter-bundle dependency rules
-  - writer authority boundary
-  - prompt constitution rules
-- A proposed refinement has been prepared to make the contract more normative for the demo MVP
-- We do NOT want to redesign the whole system
-- We want to validate whether the current documentation is incomplete or underspecified relative to the actual needs of the Codegen MVP
+- The architecture requires two concrete artifact types for repository access:
+  1. JpaRepository interface
+  2. RepositoryService class
+- However, design.md should not be required to list both concrete artifacts
+- The design stage should identify logical repository/data-access needs and query responsibilities
+- The pre-codegen stage must materialize the concrete architecture deterministically
+- The codegen stage must receive separated bundles with explicit artifact categories
 
-Important constraints:
+Problem:
+Currently, repository-related artifacts may be classified or bundled incorrectly.
+Sometimes repository-service and jpa-repository responsibilities are mixed.
+Sometimes the LLM receives only repository-service artifacts and therefore does not generate the corresponding JpaRepository interfaces.
 
-- Do NOT implement code
-- Do NOT modify files
-- Do NOT rewrite the whole document from scratch
-- Focus only on whether the current contract is sufficiently normative and what sections/rules must be added or sharpened
+This should not be solved by forcing design.md to list both artifacts.
+It must be solved in pre-codegen orchestration.
 
-1. Review target
+1. Scope
 
-Review:
+Implement only the pre-codegen repository materialization fix.
 
-- "docs/architecture/code-gen/minimal-codegen-contract.md"
+Do NOT:
 
-Evaluate it against the following proposed refinements:
+- force design.md to explicitly list both RepositoryService and JpaRepository artifacts
+- redesign the design stage
+- redesign diagnosis or traceability
+- introduce semantic retrieval
+- rely on LLM inference for artifact category decisions
+- broaden into unrelated codegen changes
 
-Proposed additions / sharpened rules
+2. Architectural rule
 
-1. Explicit distinction between:
-   
-   - decision unit
-   - execution unit
-   - scheduling unit
+For every logical repository/data-access target, pre-codegen must materialize:
 
-2. Normative generation phases:
-   
-   - model-dto-phase
-   - repository-phase
-   - domain-service-phase
-   - application-service-phase
+1. a "jpa-repository" artifact
+2. a "repository-service" artifact
 
-3. Bundle planning rules:
-   
-   - bundle contains only "generate_new"
-   - bundle not formed from bounded context alone
-   - bundle not formed from naming similarity alone
-   - bundle must remain small and functionally coherent
+The "repository-service" must depend on the corresponding "jpa-repository".
 
-4. Inter-bundle dependency rules:
-   
-   - no dependency edge from bundle order / block order / same bounded context / broad phase expansion
-   - exact required generated-artifact mapping
-   - explicit no-dependency signal:
-     "NO GENERATED DEPENDENCIES - DO NOT IMPORT ANY GENERATED TYPES"
+The "jpa-repository" owns query method declarations.
 
-5. Writer authority boundary:
-   
-   - writer materializes only already-approved targets
-   - writer must not invent dependencies, packages, actions, or extra files
+The "repository-service" delegates to the "jpa-repository" and maps persistence results into domain/model/projection objects.
 
-6. Writer prompt rules:
-   
-   - concise authoritative contract only
-   - exact dependency context only
-   - no full raw design/SP text as primary prompt body
+3. Source of logical repository targets
 
-7. Demo MVP simplifications and forbidden noisy heuristics
+Logical repository/data-access targets may be derived from:
 
-8. Execution sequence updated to reflect:
-   
-   - pre-codegen
-   - phase plan
-   - bundle plan
-   - exact dependency propagation
-   - generated signatures as downstream contract propagation only
+- design.md repository/data-access sections
+- Required New Artifacts if present
+- traceability blocks with "data_access"
+- codebase-verification-report.json targets
+- query-inventory/queryMethods when available
+- pre-codegen-decision-table existing entries
 
-2. Core question
+Do not require design.md to explicitly include both concrete artifacts.
 
-Is the current "minimal-codegen-contract.md" sufficiently normative for the current demo MVP, or does it need targeted documentation refinement in the areas listed above?
+4. Materialization rule
 
-3. Required response format
+For each logical repository target:
 
-Return exactly this structure:
+Create or confirm a JpaRepository artifact:
 
-Minimal Codegen Contract Review
+- artifactCategory: "jpa-repository"
+- artifact role: Spring Data repository interface
+- expected shape: interface extending JpaRepository or CrudRepository
+- owns queryMethods
 
-1. Overall conclusion
+Create or confirm a RepositoryService artifact:
 
-State one of:
+- artifactCategory: "repository-service"
+- artifact role: service wrapper around repository access
+- expected shape: class annotated with @Service
+- injects the corresponding JpaRepository
+- delegates query calls
+- maps results to domain/model/projection
 
-- CURRENT DOCUMENT IS SUFFICIENT
-- CURRENT DOCUMENT NEEDS TARGETED REFINEMENT
+5. Naming rules
 
-2. What is already well specified
+Use existing project naming conventions.
 
-3. What is underspecified or missing
+Examples:
 
-4. Which proposed refinements are truly necessary now
+- logical EventRepository -> IEventRepository + EventRepositoryService
+- logical BranchRepository -> IBranchRepository + BranchRepositoryService
+- logical InstructionRepository -> IInstructionRepository + InstructionRepositoryService
 
-5. Which proposed refinements can wait until after the demo
+If the current project convention uses different prefixes or suffixes, preserve the existing convention already used by package inference.
 
-6. Smallest documentation update that would materially improve implementation discipline
+6. Package inference rules
 
-7. Final recommendation
+Use package inference to assign concrete locations:
 
-4. Final discipline
+jpa-repository
 
-- Be pragmatic
-- Be conservative
-- Do not redesign the whole document
-- Focus on the smallest documentation changes that reduce implementation drift this week
+Should go to the infrastructure JPA repository package, for example:
+
+- infrastructure/db/jpa/repositories/<bounded-context>
+
+repository-service
+
+Should go to the bounded-context repository service package, for example:
+
+- isi_services/<bounded-context>/repository
+
+Do not send both categories to the same package unless the existing project convention explicitly requires it.
+
+7. Query method propagation
+
+For each logical repository target:
+
+- attach queryMethods to the "jpa-repository"
+- attach delegatedQueryMethods to the "repository-service"
+- the query definition belongs to "jpa-repository"
+- the service method delegates to the repository method
+
+If query methods are not known:
+
+- still materialize the pair
+- emit a warning that queryMethods are missing or unresolved
+- do not silently omit the JpaRepository
+
+8. Output artifact updates
+
+Update "package-inference.json" and/or "pre-codegen-decision-table.json" so that each materialized artifact includes:
+
+- artifactCategory
+- designArtifactName
+- derivedPackage
+- derivedFqn
+- targetPath
+- sourceRule
+- boundedContext
+- relatedJpaRepositoryName for repository-service artifacts
+- relatedRepositoryServiceName for jpa-repository artifacts
+- queryMethods or delegatedQueryMethods when available
+- warnings when query methods cannot be resolved
+
+9. Codegen bundle rules
+
+The codegen input must be separated by artifactCategory.
+
+jpa-repository bundle
+
+Contains only "jpa-repository" artifacts.
+
+LLM instruction:
+
+- generate interface
+- extend JpaRepository or CrudRepository
+- declare query methods
+- use @Query only if query text is available and reliable
+- otherwise generate derived method signatures or TODO comments with traceability
+
+repository-service bundle
+
+Contains only "repository-service" artifacts.
+
+LLM instruction:
+
+- generate @Service class
+- inject corresponding JpaRepository
+- expose domain-facing methods
+- delegate to JpaRepository
+- map persistence results to domain/model/projection objects
+
+10. Validation rules
+
+Before invoking codegen, validate:
+
+- every logical repository/data-access target produced both concrete artifacts
+- every repository-service has relatedJpaRepositoryName
+- every jpa-repository has relatedRepositoryServiceName
+- no repository-service is sent in the jpa-repository bundle
+- no jpa-repository is sent in the repository-service bundle
+- missing queryMethods produce warnings, not silent omission
+
+11. Acceptance criteria
+
+This fix is complete only if:
+
+- design.md is not required to list both RepositoryService and JpaRepository
+- pre-codegen materializes both artifacts from logical repository/data-access targets
+- JpaRepository and RepositoryService are separated before codegen
+- RepositoryService artifacts reference the JpaRepository they depend on
+- JpaRepository artifacts own query methods when available
+- package-inference and/or pre-codegen-decision-table expose the relationship explicitly
+- codegen bundles are category-separated
+- no broad unrelated refactor is introduced
+
+12. Final instruction
+
+This is a deterministic pre-codegen orchestration fix.
+
+Do not push architectural materialization responsibility into design.md.
+Do not ask the LLM to infer repository architecture.
+The orchestrator must materialize the concrete repository architecture before codegen.
